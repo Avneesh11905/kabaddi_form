@@ -27,10 +27,10 @@
 </head>
 
 <body
-    class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen min-h-[100dvh] flex items-center justify-center px-3 py-4 sm:p-4 md:p-6 overflow-x-hidden">
+    class="bg-gradient-to-br from-blue-50 to-indigo-100 h-screen overflow-y-auto overflow-x-hidden flex flex-col py-10 sm:py-12 px-4 sm:px-6 lg:px-8 selection:bg-blue-100 selection:text-blue-900">
     <!-- Full Page Loader -->
     <div id="page-loader"
-        class="bg-white/80 backdrop-blur-sm p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl shadow-xl w-full max-w-[95%] sm:max-w-md border border-white/50">
+        class="relative z-10 block m-auto w-full max-w-lg bg-white/60 backdrop-blur-xl p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 ring-1 ring-white/60">
         <div class="text-center mb-6 sm:mb-8">
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 tracking-tight">Kabaddi Registration</h1>
             <p class="text-gray-500 mt-2 text-sm">Loading available slots...</p>
@@ -47,10 +47,10 @@
 
     <!-- Main Form (hidden until slots load) -->
     <div id="main-content"
-        class="hidden bg-white/80 backdrop-blur-sm p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl shadow-xl w-full max-w-[95%] sm:max-w-md border border-white/50">
+        class="hidden relative z-10 m-auto w-full max-w-lg bg-white/60 backdrop-blur-xl p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 ring-1 ring-white/60">
         <div class="text-center mb-6 sm:mb-8">
             <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 tracking-tight">Kabaddi Registration</h1>
-            <p class="text-gray-500 mt-1.5 sm:mt-2 text-xs sm:text-sm">Select your slots for the upcoming match</p>
+            <p class="text-gray-500 mt-1.5 sm:mt-2 text-xs sm:text-sm">Select your slots for ODs</p>
         </div>
 
         <!-- Toast Container -->
@@ -150,7 +150,7 @@
                         placeholder="name.23bai10056@vitbhopal.ac.in" pattern=".*@vitbhopal\.ac\.in$"
                         title="Email must be a VIT Bhopal email (@vitbhopal.ac.in)">
                 </div>
-                <p class="mt-1.5 text-xs text-gray-500">You will receive an acknowledgement and edit link here.</p>
+                <p class="mt-1.5 text-xs text-gray-500">You will receive an email with edit link here.</p>
             </div>
 
             <div>
@@ -164,13 +164,10 @@
 
             <button type="submit"
                 class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 transform hover:-translate-y-0.5">
-                Submit Registration
+                Submit
             </button>
         </form>
 
-        <div class="mt-6 text-center">
-            <p class="text-xs text-gray-400">© 2026 Kabaddi Club</p>
-        </div>
     </div>
 
     <!-- Zod Validation Script -->
@@ -220,6 +217,9 @@
         const form = document.getElementById('registrationForm');
         const errorDiv = document.getElementById('js-error');
         const errorText = document.getElementById('js-error-text');
+
+        // Initialize Zod from UMD global
+        const z = window.Zod;
 
         // Create Zod Schema
         // Email is required and must end with @vitbhopal.ac.in
