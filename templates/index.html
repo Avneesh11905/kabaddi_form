@@ -105,7 +105,9 @@
                 <div class="relative">
                     <input type="email" name="email" id="email" required value="{{ email if email else '' }}"
                         class="block w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm"
-                        placeholder="name.23bai10056@vitbhopal.ac.in">
+                        placeholder="name.23bai10056@vitbhopal.ac.in"
+                        pattern=".*@vitbhopal\.ac\.in$"
+                        title="Email must be a VIT Bhopal email (@vitbhopal.ac.in)">
                 </div>
                 <p class="mt-1.5 text-xs text-gray-500">You will receive an acknowledgement and edit link here.</p>
             </div>

@@ -102,6 +102,9 @@ async def submit_form(
         # Save to MongoDB
         if not email:
             return redirect_with_error("Email is required")
+        
+        if not email.endswith("@vitbhopal.ac.in"):
+             return redirect_with_error("Email must be a VIT Bhopal email (@vitbhopal.ac.in)")
             
         submission_data = {
             "reg_no": reg_no,
@@ -153,6 +156,16 @@ async def user_update_submission(
     email: str = Form(...),
     selected_slots: List[str] = Form(...),
 ):
+    if not email.endswith("@vitbhopal.ac.in"):
+         submission = await Submission.get(id)
+         if submission:
+             return templates.TemplateResponse("user_edit.html", {
+                "request": request, 
+                "submission": submission,
+                "id": str(id),
+                "error": "Email must be a VIT Bhopal email (@vitbhopal.ac.in)"
+            })
+         return RedirectResponse(url="/")
     submission = await Submission.get(id)
     if not submission:
         # Submission was deleted - redirect to home with error
