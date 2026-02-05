@@ -55,20 +55,30 @@ async def admin_dashboard(request: Request, is_admin: bool = Depends(get_current
     if not is_admin:
         return RedirectResponse(url="/admin/login")
     
+    from datetime import timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+    
     if date:
         try:
-            target_date = datetime.strptime(date, "%Y-%m-%d")
+            # Parse requested date and set to IST
+            target_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=IST)
         except:
-            target_date = datetime.now()
+            target_date = datetime.now(IST)
     else:
-        target_date = datetime.now()
+        target_date = datetime.now(IST)
 
-    start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+    # Calculate start and end of day in IST
+    start_of_day_ist = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day_ist = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    # Convert to UTC for MongoDB Query (assuming DB stores naive UTC or aware UTC)
+    # If DB stores naive UTC (default), we need to cast to UTC and strip tzinfo
+    start_of_day_utc = start_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    end_of_day_utc = end_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
 
     submissions = await Submission.find(
-        Submission.created_at >= start_of_day,
-        Submission.created_at <= end_of_day
+        Submission.created_at >= start_of_day_utc,
+        Submission.created_at <= end_of_day_utc
     ).sort("-created_at").to_list()
     
     return templates.TemplateResponse("dashboard.html", {
@@ -184,20 +194,27 @@ async def download_excel(is_admin: bool = Depends(get_current_admin), date: Opti
     if not is_admin:
         return RedirectResponse(url="/admin/login")
 
+    from datetime import timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+
     if date:
         try:
-            target_date = datetime.strptime(date, "%Y-%m-%d")
+            target_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=IST)
         except:
-            target_date = datetime.now()
+            target_date = datetime.now(IST)
     else:
-        target_date = datetime.now()
+        target_date = datetime.now(IST)
 
-    start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+    start_of_day_ist = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day_ist = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    # Convert to UTC
+    start_of_day_utc = start_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    end_of_day_utc = end_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
 
     submissions = await Submission.find(
-        Submission.created_at >= start_of_day,
-        Submission.created_at <= end_of_day
+        Submission.created_at >= start_of_day_utc,
+        Submission.created_at <= end_of_day_utc
     ).to_list()
     
     # Adapt Beanie models to dict for Excel Service

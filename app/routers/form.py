@@ -89,11 +89,17 @@ async def submit_form(
         if not re.match(reg_pattern, reg_no):
             return redirect_with_error("Invalid format. Example: 23BAI10056", reg_no)
 
-        # Duplicate Check Logic (Day Specific)
-        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        # Duplicate Check Logic (Day Specific) - Using IST
+        from datetime import timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+        now_ist = datetime.now(IST)
+        
+        today_start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start_utc = today_start_ist.astimezone(timezone.utc).replace(tzinfo=None)
+        
         duplicate = await Submission.find_one(
             Submission.reg_no == reg_no,
-            Submission.created_at >= today_start
+            Submission.created_at >= today_start_utc
         )
         
         if duplicate:
