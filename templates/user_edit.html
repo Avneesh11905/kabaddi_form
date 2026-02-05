@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Your Submission</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white/90 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-md border border-white/50">
+        <div class="mb-6 flex items-center justify-between">
+            <h1 class="text-2xl font-bold text-gray-800">Edit Submission</h1>
+            <a href="/" class="text-sm text-blue-600 hover:text-blue-800">New Registration</a>
+        </div>
+
+        <!-- Remaining Edits Badge -->
+        {% set edits_remaining = 3 - submission.edit_count %}
+        <div
+            class="mb-4 p-3 rounded-lg {% if edits_remaining > 1 %}bg-blue-50 text-blue-700{% elif edits_remaining == 1 %}bg-yellow-50 text-yellow-700{% else %}bg-red-50 text-red-700{% endif %}">
+            <p class="text-sm font-medium">
+                {% if edits_remaining > 0 %}
+                📝 You have <strong>{{ edits_remaining }}</strong> edit(s) remaining.
+                {% else %}
+                ⚠️ You have used all your edits. Contact admin for further changes.
+                {% endif %}
+            </p>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded mb-6 text-sm">
+            <p>{{ error }}</p>
+        </div>
+        {% endif %}
+
+        {% if message %}
+        <div
+            class="{% if is_no_change %}bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700{% else %}bg-green-50 border-l-4 border-green-500 text-green-700{% endif %} px-4 py-3 rounded mb-6 text-sm">
+            <p>{{ message }}</p>
+        </div>
+        {% endif %}
+
+        <form action="/edit/{{ id }}" method="post" class="space-y-6" autocomplete="off">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Registration Number</label>
+                <input type="text" name="reg_no" value="{{ submission.reg_no }}" readonly
+                    class="block w-full px-4 py-2.5 bg-gray-100 border border-gray-300 rounded-lg text-gray-500 cursor-not-allowed">
+                <p class="mt-1 text-xs text-gray-400">Registration number cannot be changed.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
+                <input type="email" name="email" value="{{ submission.email if submission.email else '' }}"
+                    class="block w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm">
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Available Slots</label>
+                <div id="slots-container"
+                    class="space-y-2 max-h-48 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <!-- Skeleton Loader -->
+                    <div id="slots-loader" class="space-y-2">
+                        <div class="animate-pulse flex items-center p-2">
+                            <div class="h-4 w-4 bg-gray-300 rounded mr-3"></div>
+                            <div class="h-4 bg-gray-300 rounded w-24"></div>
+                        </div>
+                        <div class="animate-pulse flex items-center p-2">
+                            <div class="h-4 w-4 bg-gray-300 rounded mr-3"></div>
+                            <div class="h-4 bg-gray-300 rounded w-32"></div>
+                        </div>
+                    </div>
+                    <!-- Slots will be loaded here -->
+                    <div id="slots-list" class="hidden"></div>
+                </div>
+            </div>
+
+            <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">
+                Update Submission
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // Clear URL params after page load to prevent resubmission issues
+        if (window.location.search.includes('success') || window.location.search.includes('no_change')) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // Store which slots are currently selected (from server)
+        const selectedSlots = JSON.parse('{{ submission.slots | tojson | safe }}');
+
+        // Normalize slot name (remove "Slot: " or "Slot:" prefix)
+        function normalizeSlot(name) {
+            return name.replace(/^Slot:\s*/i, '').trim();
+        }
+
+        async function loadSlots() {
+            const loader = document.getElementById('slots-loader');
+            const slotsList = document.getElementById('slots-list');
+
+            try {
+                const response = await fetch('/api/slots');
+                const activeSlots = await response.json();
+
+                // Get active slot times (normalized)
+                const activeSlotTimes = activeSlots.map(s => normalizeSlot(s.time));
+
+                // Get previously selected slots (normalized) that are not in active list
+                const selectedNormalized = selectedSlots.map(s => normalizeSlot(s));
+                const missingSlots = selectedNormalized.filter(s => !activeSlotTimes.includes(s));
+
+                // Build final list: active slots + missing selected slots
+                let allSlots = activeSlots.map(s => ({ time: normalizeSlot(s.time), isActive: true }));
+                missingSlots.forEach(s => allSlots.push({ time: s, isActive: false }));
+
+                slotsList.innerHTML = allSlots.map((slot, index) => {
+                    const isChecked = selectedNormalized.includes(slot.time);
+                    return `
+                    <label class="flex items-start p-2 rounded-md hover:bg-white hover:shadow-sm transition cursor-pointer group ${!slot.isActive ? 'opacity-60' : ''}">
+                        <div class="flex items-center h-5">
+                            <input type="checkbox" name="selected_slots" value="${slot.time}"
+                                ${isChecked ? 'checked' : ''}
+                                class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 transition">
+                        </div>
+                        <div class="ml-3 text-sm">
+                            <span class="font-medium text-gray-700 group-hover:text-gray-900">${slot.time}</span>
+                            ${!slot.isActive ? '<span class="text-xs text-gray-500 ml-1">(disabled)</span>' : ''}
+                        </div>
+                    </label>
+                `;
+                }).join('');
+
+                loader.classList.add('hidden');
+                slotsList.classList.remove('hidden');
+            } catch (error) {
+                console.error('Failed to load slots:', error);
+                // Fallback: show only selected slots
+                slotsList.innerHTML = selectedSlots.map((slotTime) => `
+                    <label class="flex items-start p-2 rounded-md hover:bg-white hover:shadow-sm transition cursor-pointer group">
+                        <div class="flex items-center h-5">
+                            <input type="checkbox" name="selected_slots" value="${slotTime}" checked
+                                class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 transition">
+                        </div>
+                        <div class="ml-3 text-sm">
+                            <span class="font-medium text-gray-700 group-hover:text-gray-900">${slotTime}</span>
+                        </div>
+                    </label>
+                `).join('');
+                loader.classList.add('hidden');
+                slotsList.classList.remove('hidden');
+            }
+        }
+
+        loadSlots();
+    </script>
+</body>
+
+</html>
