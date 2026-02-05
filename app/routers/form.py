@@ -68,8 +68,20 @@ async def submit_form(
     try:
         if not reg_no:
             return redirect_with_error("Registration Number is required")
-        if not selected_slots:
-            return redirect_with_error("Select at least one slot")
+    from app.models import Slot
+    
+    if not selected_slots:
+        return redirect_with_error("Select at least one slot")
+        
+    # Validation: Ensure all selected slots are valid active slots
+    # We fetch all active slots and check if selected_slots is a subset
+    active_slots_docs = await Slot.find(Slot.is_active == True).to_list()
+    active_slot_times = {s.time for s in active_slots_docs}
+    
+    # Check if any selected slot is NOT in active slots
+    invalid_slots = [s for s in selected_slots if s not in active_slot_times]
+    if invalid_slots:
+        return redirect_with_error("Invalid slots selected. Please refresh and try again.")
         
         # Auto-convert to uppercase
         reg_no = reg_no.upper()
@@ -146,6 +158,21 @@ async def user_update_submission(
     if not submission:
         # Submission was deleted - redirect to home with error
         return RedirectResponse(url="/?error=Submission+not+found.+It+may+have+been+deleted.", status_code=303)
+
+    from app.models import Slot
+    # Validation: Ensure all selected slots are valid active slots
+    active_slots_docs = await Slot.find(Slot.is_active == True).to_list()
+    active_slot_times = {s.time for s in active_slots_docs}
+    
+    # Check if any selected slot is NOT in active slots
+    invalid_slots = [s for s in selected_slots if s not in active_slot_times]
+    if invalid_slots:
+        return templates.TemplateResponse("user_edit.html", {
+            "request": request,
+            "submission": submission,
+            "id": str(id),
+            "error": "Invalid slots selected. Please refresh and try again."
+        })
     
     # Check edit limit
     if submission.edit_count >= 3:
