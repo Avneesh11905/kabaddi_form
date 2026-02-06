@@ -21,7 +21,7 @@ def send_acknowledgement_email(email: str, reg_no: str, slots: list[str], edit_l
         
         # Sender updated to custom domain
         r = resend.Emails.send({
-            "from": "Kabaddi Form <no-reply@aymahajan.in>",
+            "from": "Kabaddi OD Form <no-reply@aymahajan.in>",
             "to": email,
             "subject": "On-Duty Slot Submission Received",
             "html": html_content
@@ -50,7 +50,7 @@ def send_update_email(email: str, reg_no: str, slots: list[str], edits_remaining
         """
         
         r = resend.Emails.send({
-            "from": "Kabaddi Form <no-reply@aymahajan.in>",
+            "from": "Kabaddi OD Form <no-reply@aymahajan.in>",
             "to": email,
             "subject": "Submission Updated Successfully",
             "html": html_content
