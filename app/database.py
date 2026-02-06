@@ -10,5 +10,7 @@ async def init_db():
     # Bootstrap Admin if none exists
     if await Admin.count() == 0:
         print("[DB Init] Creating default admin user...")
-        default_admin = Admin(username=settings.ADMIN_USER, password=settings.ADMIN_PASS)
+        from app.utils.auth import Hash
+        hashed_pw = Hash.bcrypt(settings.ADMIN_PASS)
+        default_admin = Admin(username=settings.ADMIN_USER, password=hashed_pw)
         await default_admin.insert()

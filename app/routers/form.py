@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, Request, Form, Query
+from fastapi import APIRouter, Request, Form, Query, BackgroundTasks
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 import re
@@ -49,6 +49,7 @@ async def read_submitted(request: Request, id: PydanticObjectId):
 @router.post("/", response_class=HTMLResponse)
 async def submit_form(
     request: Request, 
+    background_tasks: BackgroundTasks,
     reg_no: str = Form(""), 
     email: str = Form(""),
     selected_slots: List[str] = Form([])
@@ -61,7 +62,6 @@ async def submit_form(
         if passed_email:
             params["email"] = passed_email
         
-        # We don't preserve slots to keep URL clean, matching previous behavior
         query_string = urllib.parse.urlencode(params)
         return RedirectResponse(url=f"/?{query_string}", status_code=303)
 
@@ -72,40 +72,34 @@ async def submit_form(
         if not selected_slots:
             return redirect_with_error("Select at least one slot")
         
-        # Validation: Ensure all selected slots are valid active slots
-        # We fetch all active slots and check if selected_slots is a subset
         active_slots_docs = await Slot.find(Slot.is_active == True).to_list()
         active_slot_times = {s.time for s in active_slots_docs}
         
-        # Check if any selected slot is NOT in active slots
         invalid_slots = [s for s in selected_slots if s not in active_slot_times]
         if invalid_slots:
             return redirect_with_error("Invalid slots selected. Please refresh and try again.")
             
-        # Auto-convert to uppercase
         reg_no = reg_no.upper()
         
         reg_pattern = r"^\d{2}[A-Z]{3}\d{5}$"
         if not re.match(reg_pattern, reg_no):
             return redirect_with_error("Invalid format. Example: 23BAI10056", reg_no)
 
-        # Duplicate Check Logic (Day Specific) - Using IST
         from datetime import timezone, timedelta
         IST = timezone(timedelta(hours=5, minutes=30))
         now_ist = datetime.now(IST)
+        date_str = now_ist.strftime("%Y-%m-%d")
         
-        today_start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_start_utc = today_start_ist.astimezone(timezone.utc).replace(tzinfo=None)
-        
+        # Check for duplicate using the persistent field
+        # Note: We rely on the Unique Index for race condition, but this check provides a friendly error for normal users
         duplicate = await Submission.find_one(
             Submission.reg_no == reg_no,
-            Submission.created_at >= today_start_utc
+            Submission.date_str == date_str # Robust check
         )
         
         if duplicate:
             return redirect_with_error("This registration number has submitted a response for today. Contact admin for new response.", reg_no)
 
-        # Save to MongoDB
         if not email:
             return redirect_with_error("Email is required")
         
@@ -115,20 +109,26 @@ async def submit_form(
         submission_data = {
             "reg_no": reg_no,
             "slots": selected_slots,
-            "email": email
+            "email": email,
+            "date_str": date_str
         }
             
         submission = Submission(**submission_data)
-        await submission.insert()
         
-        # Send Email if provided
+        try:
+            await submission.insert()
+        except Exception as e:
+            # Catch duplicate key error from Unique Index
+            if "DuplicateKey" in str(e) or "E11000" in str(e): 
+                 return redirect_with_error("This registration number has submitted a response for today. Contact admin for new response.", reg_no)
+            raise e
+        
+        # Send Email in Background
         if email:
-            # Ensure no double slashes if APP_URL has trailing slash
             base_url = settings.APP_URL.rstrip("/")
             edit_link = f"{base_url}/edit/{str(submission.id)}"
-            send_acknowledgement_email(email, reg_no, selected_slots, edit_link)
+            background_tasks.add_task(send_acknowledgement_email, email, reg_no, selected_slots, edit_link)
 
-        # Redirect to submitted page
         return RedirectResponse(url=f"/submitted/{submission.id}", status_code=303)
 
     except Exception as e:
@@ -136,7 +136,13 @@ async def submit_form(
         return redirect_with_error("Internal Server Error")
 
 @router.get("/edit/{id}", response_class=HTMLResponse)
-async def user_edit_page(request: Request, id: PydanticObjectId, success: Optional[str] = None, no_change: Optional[str] = None):
+async def user_edit_page(
+    request: Request, 
+    id: PydanticObjectId, 
+    success: Optional[str] = None, 
+    no_change: Optional[str] = None,
+    error: Optional[str] = None
+):
     submission = await Submission.get(id)
     if not submission:
         return RedirectResponse(url="/?error=Submission+not+found.+It+may+have+been+deleted.", status_code=303)
@@ -152,6 +158,7 @@ async def user_edit_page(request: Request, id: PydanticObjectId, success: Option
         "submission": submission,
         "id": str(id),
         "message": message,
+        "error": error,
         "is_no_change": bool(no_change)
     })
 
@@ -163,15 +170,8 @@ async def user_update_submission(
     selected_slots: List[str] = Form(...),
 ):
     if not email.endswith("@vitbhopal.ac.in"):
-         submission = await Submission.get(id)
-         if submission:
-             return templates.TemplateResponse("user_edit.html", {
-                "request": request, 
-                "submission": submission,
-                "id": str(id),
-                "error": "Email must be a VIT Bhopal email (@vitbhopal.ac.in)"
-            })
-         return RedirectResponse(url="/")
+         return RedirectResponse(url=f"/edit/{id}?error=Email+must+be+a+VIT+Bhopal+email+(@vitbhopal.ac.in)", status_code=303)
+
     submission = await Submission.get(id)
     if not submission:
         # Submission was deleted - redirect to home with error
@@ -184,21 +184,11 @@ async def user_update_submission(
     # Check if any selected slot is NOT in active slots
     invalid_slots = [s for s in selected_slots if s not in active_slot_times]
     if invalid_slots:
-        return templates.TemplateResponse("user_edit.html", {
-            "request": request,
-            "submission": submission,
-            "id": str(id),
-            "error": "Invalid slots selected. Please refresh and try again."
-        })
+        return RedirectResponse(url=f"/edit/{id}?error=Invalid+slots+selected.+Please+refresh+and+try+again.", status_code=303)
     
     # Check edit limit
     if submission.edit_count >= 3:
-        return templates.TemplateResponse("user_edit.html", {
-            "request": request,
-            "submission": submission,
-            "id": str(id),
-            "error": "You have reached the maximum number of edits (3). Please contact admin for further changes."
-        })
+        return RedirectResponse(url=f"/edit/{id}?error=You+have+reached+the+maximum+number+of+edits+(3).+Please+contact+admin+for+further+changes.", status_code=303)
     
     # Compare old and new values (normalize slots for comparison)
     old_email = submission.email or ""

@@ -20,29 +20,37 @@ async def get_slot_times():
     slots = await Slot.find(Slot.is_active == True).to_list()
     return [s.time for s in slots]
 
+from itsdangerous import URLSafeSerializer
+from app.utils.auth import Hash
+
+signer = URLSafeSerializer(settings.ADMIN_PASS, salt="admin-session")
+
 @router.get("/login", response_class=HTMLResponse)
-async def admin_login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+async def admin_login_page(request: Request, error: Optional[str] = None):
+    return templates.TemplateResponse("login.html", {"request": request, "error": error})
 
 @router.post("/login", response_class=HTMLResponse)
 async def admin_login(request: Request, username: str = Form(...), password: str = Form(...)):
     # Check against MongoDB
     admin = await Admin.find_one(Admin.username == username)
     
-    if admin and admin.password == password:
+    if admin and Hash.verify(password, admin.password):
         response = RedirectResponse(url="/admin/dashboard", status_code=303)
+        
+        # Create Signed Cookie
+        session_token = signer.dumps({"user": admin.username})
+        
         response.set_cookie(
             key=settings.SESSION_COOKIE, 
-            value="logged_in",
+            value=session_token,
             max_age=settings.SESSION_EXPIRY,
             httponly=True,
-            samesite="strict"
+            samesite="lax", # Strict can sometimes block redirects from external sites, Lax is okay for admin
+            secure=True # Always secure for signed cookies
         )
         return response
     
-    # Fallback to config creds ONLY if DB is somehow empty (edge case), but DB init handles bootstrap.
-    # So we strictly use DB.
-    return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
+    return RedirectResponse(url="/admin/login?error=Invalid+credentials", status_code=303)
 
 @router.get("/logout")
 async def admin_logout():
@@ -88,13 +96,15 @@ async def admin_dashboard(request: Request, is_admin: bool = Depends(get_current
     })
 
 @router.get("/settings", response_class=HTMLResponse)
-async def admin_settings_page(request: Request, is_admin: bool = Depends(get_current_admin)):
+async def admin_settings_page(request: Request, is_admin: bool = Depends(get_current_admin), success: Optional[str] = None):
     if not is_admin:
         return RedirectResponse(url="/admin/login")
     
     # Get the admin user (assuming single admin for now, or just get the first one)
     admin = await Admin.find_one()
-    return templates.TemplateResponse("admin_settings.html", {"request": request, "admin": admin})
+    message = "Credentials updated successfully!" if success else None
+    
+    return templates.TemplateResponse("admin_settings.html", {"request": request, "admin": admin, "message": message})
 
 @router.post("/settings", response_class=HTMLResponse)
 async def update_admin_settings(
@@ -108,18 +118,17 @@ async def update_admin_settings(
     
     admin = await Admin.find_one()
     if admin:
+        from app.utils.auth import Hash
+        hashed_pw = Hash.bcrypt(password)
+        
         admin.username = username
-        admin.password = password
+        admin.password = hashed_pw
         await admin.save()
-        return templates.TemplateResponse("admin_settings.html", {
-            "request": request, 
-            "admin": admin,
-            "message": "Credentials updated successfully!"
-        })
+        return RedirectResponse(url="/admin/settings?success=1", status_code=303)
     return RedirectResponse(url="/admin/dashboard")
 
 @router.get("/edit/{id}", response_class=HTMLResponse)
-async def edit_submission_page(request: Request, id: PydanticObjectId, success: Optional[str] = None, is_admin: bool = Depends(get_current_admin)):
+async def edit_submission_page(request: Request, id: PydanticObjectId, success: Optional[str] = None, error: Optional[str] = None, is_admin: bool = Depends(get_current_admin)):
     if not is_admin:
         return RedirectResponse(url="/admin/login")
     
@@ -133,7 +142,8 @@ async def edit_submission_page(request: Request, id: PydanticObjectId, success: 
         "request": request, 
         "submission": submission,
         "id": str(id),
-        "message": message
+        "message": message,
+        "error": error
     })
 
 @router.post("/edit/{id}")
@@ -152,18 +162,7 @@ async def edit_submission(
     
     reg_pattern = r"^\d{2}[A-Z]{3}\d{5}$"
     if not re.match(reg_pattern, reg_no):
-         # Create a fake submission-like dict for template rendering
-         fake_submission = type('obj', (object,), {
-             'reg_no': reg_no,
-             'slots': selected_slots,
-             'email': email
-         })()
-         return templates.TemplateResponse("edit.html", {
-            "request": request, 
-            "submission": fake_submission,
-            "id": str(id),
-            "error": "Invalid registration number format."
-        })
+         return RedirectResponse(url=f"/admin/edit/{id}?error=Invalid+registration+number+format.", status_code=303)
 
     submission = await Submission.get(id)
     if not submission:
@@ -223,7 +222,10 @@ async def download_excel(is_admin: bool = Depends(get_current_admin), date: Opti
     # Get slots from MongoDB
     slot_times = await get_slot_times()
     
-    output = generate_excel_bytes(submissions_dicts, slot_times, target_date)
+    from starlette.concurrency import run_in_threadpool
+    
+    # Run synchronous Pandas code in a thread pool to avoid blocking the event loop
+    output = await run_in_threadpool(generate_excel_bytes, submissions_dicts, slot_times, target_date)
     
     filename = f"kabaddi_{target_date.day}_{target_date.month}_{target_date.year}.xlsx"
     return StreamingResponse(

@@ -21,17 +21,7 @@
             <a href="/admin/dashboard" class="text-sm text-blue-600 hover:text-blue-800">Back to Dashboard</a>
         </div>
 
-        {% if message %}
-        <div class="bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded mb-6 text-sm">
-            <p>{{ message }}</p>
-        </div>
-        {% endif %}
 
-        {% if error %}
-        <div class="bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded mb-6 text-sm">
-            <p>{{ error }}</p>
-        </div>
-        {% endif %}
 
         <form action="/admin/settings" method="post" class="space-y-5">
             <div>
@@ -51,6 +41,90 @@
             </button>
         </form>
     </div>
+    </div>
+    <script>
+        document.querySelector('form').addEventListener('submit', function () {
+            const btn = this.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Updating...
+            `;
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+        });
+    </script>
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none">
+        {% if message %}
+        <div
+            class="toast-message bg-white border-l-4 border-green-500 shadow-lg rounded-r-lg px-4 py-3 min-w-[300px] transform transition-all duration-300 translate-x-full opacity-0 pointer-events-auto flex items-start">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium text-gray-900">{{ message }}</p>
+            </div>
+            <button onclick="this.closest('.toast-message').remove()"
+                class="ml-auto flex-shrink-0 text-gray-400 hover:text-gray-500">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div
+            class="toast-message bg-white border-l-4 border-red-500 shadow-lg rounded-r-lg px-4 py-3 min-w-[300px] transform transition-all duration-300 translate-x-full opacity-0 pointer-events-auto flex items-start">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm font-medium text-gray-900">{{ error }}</p>
+            </div>
+            <button onclick="this.closest('.toast-message').remove()"
+                class="ml-auto flex-shrink-0 text-gray-400 hover:text-gray-500">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Toast Animation Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toasts = document.querySelectorAll('.toast-message');
+
+            if (toasts.length > 0) {
+                const url = new URL(window.location);
+                url.searchParams.delete('success');
+                url.searchParams.delete('message');
+                window.history.replaceState({}, document.title, url.toString());
+            }
+
+            toasts.forEach((toast, index) => {
+                setTimeout(() => {
+                    toast.classList.remove('translate-x-full', 'opacity-0');
+                }, 100 * (index + 1));
+
+                // Auto dismiss after 5 seconds
+                setTimeout(() => {
+                    toast.classList.add('translate-x-full', 'opacity-0');
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000 + (index * 1000));
+            });
+        });
+    </script>
 </body>
 
 </html>
