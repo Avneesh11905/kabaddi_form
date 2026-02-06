@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Logs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+    <!-- Nav Bar -->
+    <nav class="hidden md:block bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- Logo / Title -->
+                <div class="flex items-center">
+                    <a href="/admin/dashboard" class="text-xl font-bold text-gray-800 tracking-tight">Kabaddi Admin</a>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <a href="/admin/dashboard"
+                        class="text-gray-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Dashboard</a>
+                    <a href="/admin/dashboard?view=trash"
+                        class="text-gray-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Trash</a>
+                    <a href="/admin/slots"
+                        class="text-gray-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Manage
+                        Slots</a>
+                    <a href="/admin/logs" class="text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Logs</a>
+                    <a href="/admin/settings"
+                        class="text-gray-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Settings</a>
+                    <a href="/admin/logout" onclick="return confirm('Are you sure you want to logout?');"
+                        class="text-gray-500 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile Floating Menu Button -->
+    <button onclick="toggleDrawer()"
+        class="md:hidden fixed top-4 right-4 z-50 p-2 bg-white rounded-full shadow-lg border border-gray-200 text-gray-600 hover:text-indigo-600 focus:outline-none active:scale-95 transition-transform"
+        aria-label="Menu">
+        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+    </button>
+
+    <!-- Mobile Side Drawer (Overlay + Panel) -->
+    <div id="mobile-drawer-overlay" onclick="toggleDrawer()"
+        class="fixed inset-0 bg-gray-800 bg-opacity-50 z-40 hidden transition-opacity duration-300 opacity-0 md:hidden">
+    </div>
+    <div id="mobile-drawer"
+        class="fixed inset-y-0 right-0 max-w-xs w-64 bg-white shadow-xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col md:hidden">
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <span class="text-lg font-bold text-gray-800">Menu</span>
+            <button onclick="toggleDrawer()" class="text-gray-500 hover:text-red-500 focus:outline-none">
+                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="px-4 py-4 space-y-1 overflow-y-auto flex-1">
+            <a href="/admin/dashboard"
+                class="block px-4 py-3 rounded-lg text-base font-medium transition border-l-4 hover:border-gray-200 {% if not current_view or current_view == 'active' %}text-gray-700 hover:text-indigo-600 hover:bg-gray-50 border-transparent{% else %}text-gray-700 hover:text-indigo-600 hover:bg-gray-50 border-transparent{% endif %}">Dashboard</a>
+            <a href="/admin/dashboard?view=trash"
+                class="block px-4 py-3 rounded-lg text-base font-medium transition border-l-4 hover:border-gray-200 {% if current_view == 'trash' %}text-indigo-700 bg-indigo-50 border-indigo-500{% else %}text-gray-700 hover:text-indigo-600 hover:bg-gray-50 border-transparent{% endif %}">Trash</a>
+            <a href="/admin/slots"
+                class="block px-4 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 transition border-l-4 border-transparent hover:border-gray-200">Manage
+                Slots</a>
+            <a href="/admin/logs"
+                class="block px-4 py-3 rounded-lg text-base font-medium text-indigo-700 bg-indigo-50 border-l-4 border-indigo-500">Logs</a>
+            <a href="/admin/settings"
+                class="block px-4 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 transition border-l-4 border-transparent hover:border-gray-200">Settings</a>
+        </div>
+        <div class="p-4 border-t border-gray-100 bg-gray-50">
+            <a href="/admin/logout" onclick="return confirm('Are you sure you want to logout?');"
+                class="block w-full text-center px-4 py-2 rounded-md text-base font-bold text-red-600 bg-red-50 hover:bg-red-100 transition">
+                Logout
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function toggleDrawer() {
+            const drawer = document.getElementById('mobile-drawer');
+            const overlay = document.getElementById('mobile-drawer-overlay');
+
+            if (drawer.classList.contains('translate-x-full')) {
+                // Open
+                drawer.classList.remove('translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => {
+                    overlay.classList.remove('opacity-0');
+                }, 10);
+            } else {
+                // Close
+                drawer.classList.add('translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                }, 300);
+            }
+        }
+    </script>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <!-- Header with Filters -->
+        <div class="flex flex-col gap-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <h1 class="text-2xl font-bold text-gray-800">Activity Logs</h1>
+                    <span class="text-sm text-gray-500">({{ total_logs }} entries)</span>
+                </div>
+            </div>
+
+            <div
+                class="flex flex-col sm:flex-row gap-4 justify-between bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <!-- Category Filters -->
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-1">Categoryinfo:</span>
+                    <a href="/admin/logs?filter={% if current_level != 'all' %}&level={{ current_level }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_filter == 'all' %}bg-gray-800 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">
+                        All
+                    </a>
+                    <a href="/admin/logs?filter=auth{% if current_level != 'all' %}&level={{ current_level }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_filter == 'auth' %}bg-green-600 text-white{% else %}bg-green-50 text-gray-600 hover:bg-green-100{% endif %}">
+                        Auth
+                    </a>
+                    <a href="/admin/logs?filter=data{% if current_level != 'all' %}&level={{ current_level }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_filter == 'data' %}bg-blue-600 text-white{% else %}bg-blue-50 text-gray-600 hover:bg-blue-100{% endif %}">
+                        Data
+                    </a>
+                    <a href="/admin/logs?filter=system{% if current_level != 'all' %}&level={{ current_level }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_filter == 'system' %}bg-yellow-600 text-white{% else %}bg-yellow-50 text-gray-600 hover:bg-yellow-100{% endif %}">
+                        System
+                    </a>
+                    <a href="/admin/logs?filter=errors{% if current_level != 'all' %}&level={{ current_level }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_filter == 'errors' %}bg-red-600 text-white{% else %}bg-red-50 text-gray-600 hover:bg-red-100{% endif %}">
+                        Errors
+                    </a>
+                </div>
+
+                <!-- Level Filters -->
+                <div class="flex items-center gap-2 flex-wrap sm:border-l sm:pl-4 border-gray-200">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-1">Level:</span>
+                    <a href="/admin/logs?level={% if current_filter != 'all' %}&filter={{ current_filter }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_level == 'all' %}bg-gray-800 text-white{% else %}bg-gray-100 text-gray-600 hover:bg-gray-200{% endif %}">
+                        All
+                    </a>
+                    <a href="/admin/logs?level=INFO{% if current_filter != 'all' %}&filter={{ current_filter }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_level == 'INFO' %}bg-blue-600 text-white{% else %}bg-blue-50 text-gray-600 hover:bg-blue-100{% endif %}">
+                        INFO
+                    </a>
+                    <a href="/admin/logs?level=WARNING{% if current_filter != 'all' %}&filter={{ current_filter }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_level == 'WARNING' %}bg-orange-500 text-white{% else %}bg-orange-50 text-gray-600 hover:bg-orange-100{% endif %}">
+                        WARN
+                    </a>
+                    <a href="/admin/logs?level=ERROR{% if current_filter != 'all' %}&filter={{ current_filter }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition {% if current_level == 'ERROR' %}bg-red-600 text-white{% else %}bg-red-50 text-gray-600 hover:bg-red-100{% endif %}">
+                        ERROR
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Time
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Level
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Action
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Details
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                IP / Device
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for log in logs %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ log.created_at.strftime('%d %b %Y, %H:%M:%S') }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if log.level == 'ERROR' %}
+                                <span
+                                    class="px-2 py-1 text-xs font-bold rounded border border-red-200 bg-red-50 text-red-700">
+                                    ERROR
+                                </span>
+                                {% elif log.level == 'WARNING' %}
+                                <span
+                                    class="px-2 py-1 text-xs font-bold rounded border border-orange-200 bg-orange-50 text-orange-700">
+                                    WARN
+                                </span>
+                                {% else %}
+                                <span
+                                    class="px-2 py-1 text-xs font-bold rounded border border-blue-200 bg-blue-50 text-blue-700">
+                                    INFO
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if log.action == 'login' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                    Login
+                                </span>
+                                {% elif log.action == 'login_failed' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                                    Failed Login
+                                </span>
+                                {% elif log.action == 'logout' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                                    Logout
+                                </span>
+                                {% elif log.action == 'edit' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                    Edit
+                                </span>
+                                {% elif log.action == 'delete' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                                    Delete
+                                </span>
+                                {% elif log.action == 'download' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                                    Download
+                                </span>
+                                {% elif log.action == 'settings' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                                    Settings
+                                </span>
+                                {% elif log.action == 'error' or log.log_type == 'error' %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-500 text-white">
+                                    Error
+                                </span>
+                                {% else %}
+                                <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                                    {{ log.action }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-700 max-w-xs truncate" title="{{ log.details }}">
+                                {{ log.details or '-' }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                <div class="font-mono text-xs">{{ log.ip_address or '-' }}</div>
+                                {% if log.user_agent %}
+                                <div class="text-xs text-gray-500" title="{{ log.user_agent }}">
+                                    <span class="ua-parse" data-ua="{{ log.user_agent }}">{{ log.user_agent[:30]
+                                        }}...</span>
+                                </div>
+                                {% else %}
+                                <div class="text-xs text-gray-400">-</div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                                <p class="text-lg font-medium text-gray-900">No logs found</p>
+                                <p class="text-sm">Try adjusting your filters</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="bg-gray-50 px-6 py-4 border-t flex items-center justify-between">
+                <div class="text-sm text-gray-500">
+                    Page {{ current_page }} of {{ total_pages }}
+                </div>
+                <div class="flex gap-2">
+                    {% if current_page > 1 %}
+                    <a href="/admin/logs?page={{ current_page - 1 }}{% if current_filter != 'all' %}&filter={{ current_filter }}{% endif %}{% if current_level != 'all' %}&level={{ current_level }}{% endif %}"
+                        class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">
+                        Previous
+                    </a>
+                    {% endif %}
+
+                    <!-- Simple pagination range -->
+                    {% for p in range(1, total_pages + 1) %}
+                    {% if p == current_page %}
+                    <span class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md">
+                        {{ p }}
+                    </span>
+                    {% elif p <= 3 or p> total_pages - 2 or (p >= current_page - 1 and p <= current_page + 1) %} <a
+                            href="/admin/logs?page={{ p }}{% if current_filter != 'all' %}&filter={{ current_filter }}{% endif %}{% if current_level != 'all' %}&level={{ current_level }}{% endif %}"
+                            class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">
+                            {{ p }}
+                            </a>
+                            {% elif p == 4 and current_page > 5 %}
+                            <span class="px-2 py-1.5 text-gray-400">...</span>
+                            {% elif p == total_pages - 2 and current_page < total_pages - 4 %} <span
+                                class="px-2 py-1.5 text-gray-400">...</span>
+                                {% endif %}
+                                {% endfor %}
+
+                                {% if current_page < total_pages %} <a
+                                    href="/admin/logs?page={{ current_page + 1 }}{% if current_filter != 'all' %}&filter={{ current_filter }}{% endif %}{% if current_level != 'all' %}&level={{ current_level }}{% endif %}"
+                                    class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">
+                                    Next
+                                    </a>
+                                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Script to parse User Agent -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const uaElements = document.querySelectorAll('.ua-parse');
+
+            function parseUA(ua) {
+                let browser = "Unknown Browser";
+                if (ua.includes("Firefox")) browser = "Firefox";
+                else if (ua.includes("SamsungBrowser")) browser = "Samsung Internet";
+                else if (ua.includes("Opera") || ua.includes("OPR")) browser = "Opera";
+                else if (ua.includes("Trident")) browser = "Internet Explorer";
+                else if (ua.includes("Edge")) browser = "Edge";
+                else if (ua.includes("Chrome")) browser = "Chrome";
+                else if (ua.includes("Safari")) browser = "Safari";
+
+                let os = "Unknown OS";
+                if (ua.includes("Win")) os = "Windows";
+                else if (ua.includes("Mac")) os = "MacOS";
+                else if (ua.includes("Linux")) os = "Linux";
+                else if (ua.includes("Android")) os = "Android";
+                else if (ua.includes("like Mac")) os = "iOS";
+
+                return `${browser} on ${os}`;
+            }
+
+            uaElements.forEach(el => {
+                const uaString = el.getAttribute('data-ua');
+                if (uaString) {
+                    el.textContent = parseUA(uaString);
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

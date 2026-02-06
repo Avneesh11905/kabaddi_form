@@ -1,11 +1,11 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 from app.config import settings
-from app.models import Submission, Admin, Slot
+from app.models import Submission, Admin, Slot, AdminLog
 
 async def init_db():
     client = AsyncIOMotorClient(settings.MONGO_URI)
-    await init_beanie(database=client[settings.DB_NAME], document_models=[Submission, Admin, Slot])
+    await init_beanie(database=client[settings.DB_NAME], document_models=[Submission, Admin, Slot, AdminLog])
     
     # Bootstrap Admin if none exists
     if await Admin.count() == 0:

@@ -14,35 +14,128 @@
     </style>
 </head>
 
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-gray-100">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-2xl font-bold text-gray-800">Admin Credentials</h1>
-            <a href="/admin/dashboard" class="text-sm text-blue-600 hover:text-blue-800">Back to Dashboard</a>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Nav Bar -->
+    <nav class="hidden md:block bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- Logo / Title -->
+                <div class="flex items-center">
+                    <a href="/admin/dashboard" class="text-xl font-bold text-gray-800 tracking-tight">Kabaddi Admin</a>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <a href="/admin/dashboard"
+                        class="text-gray-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Dashboard</a>
+                    <a href="/admin/dashboard?view=trash"
+                        class="text-gray-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Trash</a>
+                    <a href="/admin/slots"
+                        class="text-gray-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Manage
+                        Slots</a>
+                    <a href="/admin/logs"
+                        class="text-gray-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Logs</a>
+                    <a href="/admin/settings"
+                        class="text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Settings</a>
+                    <a href="/admin/logout" onclick="return confirm('Are you sure you want to logout?');"
+                        class="text-gray-500 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150">Logout</a>
+                </div>
+            </div>
         </div>
+    </nav>
 
+    <!-- Mobile Floating Menu Button -->
+    <button onclick="toggleDrawer()"
+        class="md:hidden fixed top-4 right-4 z-50 p-2 bg-white rounded-full shadow-lg border border-gray-200 text-gray-600 hover:text-indigo-600 focus:outline-none active:scale-95 transition-transform"
+        aria-label="Menu">
+        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+    </button>
 
-
-        <form action="/admin/settings" method="post" class="space-y-5">
-            <div>
-                <label for="username" class="block text-sm font-medium text-gray-700 mb-1">New Username</label>
-                <input type="text" name="username" id="username" required value="{{ admin.username }}"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
-            </div>
-            <div>
-                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">New Password (leave blank to keep current)</label>
-                <input type="password" name="password" id="password" placeholder="••••••••"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
-            </div>
-
-            <button type="submit"
-                class="w-full bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200">
-                Update Credentials
-            </button>
-        </form>
+    <!-- Mobile Side Drawer (Overlay + Panel) -->
+    <div id="mobile-drawer-overlay" onclick="toggleDrawer()"
+        class="fixed inset-0 bg-gray-800 bg-opacity-50 z-40 hidden transition-opacity duration-300 opacity-0 md:hidden">
     </div>
+    <div id="mobile-drawer"
+        class="fixed inset-y-0 right-0 max-w-xs w-64 bg-white shadow-xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col md:hidden">
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <span class="text-lg font-bold text-gray-800">Menu</span>
+            <button onclick="toggleDrawer()" class="text-gray-500 hover:text-red-500 focus:outline-none">
+                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="px-4 py-4 space-y-1 overflow-y-auto flex-1">
+            <a href="/admin/dashboard"
+                class="block px-4 py-3 rounded-lg text-base font-medium transition border-l-4 hover:border-gray-200 {% if not current_view or current_view == 'active' %}text-gray-700 hover:text-indigo-600 hover:bg-gray-50 border-transparent{% else %}text-gray-700 hover:text-indigo-600 hover:bg-gray-50 border-transparent{% endif %}">Dashboard</a>
+            <a href="/admin/dashboard?view=trash"
+                class="block px-4 py-3 rounded-lg text-base font-medium transition border-l-4 hover:border-gray-200 {% if current_view == 'trash' %}text-indigo-700 bg-indigo-50 border-indigo-500{% else %}text-gray-700 hover:text-indigo-600 hover:bg-gray-50 border-transparent{% endif %}">Trash</a>
+            <a href="/admin/slots"
+                class="block px-4 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 transition border-l-4 border-transparent hover:border-gray-200">Manage
+                Slots</a>
+            <a href="/admin/logs"
+                class="block px-4 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-indigo-600 hover:bg-gray-50 transition border-l-4 border-transparent hover:border-gray-200">Logs</a>
+            <a href="/admin/settings"
+                class="block px-4 py-3 rounded-lg text-base font-medium text-indigo-700 bg-indigo-50 border-l-4 border-indigo-500">Settings</a>
+        </div>
+        <div class="p-4 border-t border-gray-100 bg-gray-50">
+            <a href="/admin/logout" onclick="return confirm('Are you sure you want to logout?');"
+                class="block w-full text-center px-4 py-2 rounded-md text-base font-bold text-red-600 bg-red-50 hover:bg-red-100 transition">
+                Logout
+            </a>
+        </div>
+    </div>
+
+    <div class="flex items-center justify-center min-h-[calc(100vh-4rem)] p-4">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-gray-100">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6">Admin Credentials</h1>
+
+
+
+            <form action="/admin/settings" method="post" class="space-y-5">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-1">New Username</label>
+                    <input type="text" name="username" id="username" required value="{{ admin.username }}"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">New Password (leave blank
+                        to keep current)</label>
+                    <input type="password" name="password" id="password" placeholder="••••••••"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                </div>
+
+                <button type="submit"
+                    class="w-full bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200">
+                    Update Credentials
+                </button>
+            </form>
+        </div>
     </div>
     <script>
+        function toggleDrawer() {
+            const drawer = document.getElementById('mobile-drawer');
+            const overlay = document.getElementById('mobile-drawer-overlay');
+
+            if (drawer.classList.contains('translate-x-full')) {
+                // Open
+                drawer.classList.remove('translate-x-full');
+                overlay.classList.remove('hidden');
+                setTimeout(() => {
+                    overlay.classList.remove('opacity-0');
+                }, 10);
+            } else {
+                // Close
+                drawer.classList.add('translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                }, 300);
+            }
+        }
+
         document.querySelector('form').addEventListener('submit', function () {
             const btn = this.querySelector('button[type="submit"]');
             btn.disabled = true;
@@ -100,8 +193,30 @@
         {% endif %}
     </div>
 
-    <!-- Toast Animation Script -->
+    <!-- Mobile Nav and Toast Animation Script -->
     <script>
+        function toggleDrawer() {
+            const drawer = document.getElementById('mobile-drawer');
+            const overlay = document.getElementById('mobile-drawer-overlay');
+
+            if (drawer.classList.contains('translate-x-full')) {
+                // Open
+                drawer.classList.remove('translate-x-full');
+                overlay.classList.remove('hidden');
+                // small delay to allow display:block to apply before opacity transition
+                setTimeout(() => {
+                    overlay.classList.remove('opacity-0');
+                }, 10);
+            } else {
+                // Close
+                drawer.classList.add('translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                }, 300); // match transition duration
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const toasts = document.querySelectorAll('.toast-message');
 

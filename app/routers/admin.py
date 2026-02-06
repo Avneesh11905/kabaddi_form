@@ -10,10 +10,39 @@ import re
 from app.config import settings
 from app.dependencies import get_current_admin
 from app.services.excel_service import generate_excel_bytes
-from app.models import Submission, Admin, Slot
+from app.models import Submission, Admin, Slot, AdminLog
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="templates")
+
+async def log_admin_action(request: Request, action: str, details: str = None, admin_username: str = None, log_type: str = "admin", level: str = None):
+    """Log admin activity or errors to MongoDB"""
+    ip_address = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "unknown")
+    
+    # Auto-detect level if not provided
+    if level is None:
+        if action == "login_failed":
+            level = "WARNING"
+        elif action == "error" or log_type == "error":
+            level = "ERROR"
+        else:
+            level = "INFO"
+    
+    log = AdminLog(
+        log_type=log_type,
+        level=level,
+        action=action,
+        details=details,
+        admin_username=admin_username,
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
+    await log.insert()
+
+async def log_error(request: Request, error_message: str, details: str = None):
+    """Convenience function to log errors"""
+    await log_admin_action(request, "error", error_message if details is None else f"{error_message}: {details}", log_type="error", level="ERROR")
 
 async def get_slot_times():
     """Fetch active slot times from MongoDB"""
@@ -35,6 +64,7 @@ async def admin_login(request: Request, username: str = Form(...), password: str
     admin = await Admin.find_one(Admin.username == username)
     
     if admin and Hash.verify(password, admin.password):
+        await log_admin_action(request, "login", f"Login successful", admin.username)
         response = RedirectResponse(url="/admin/dashboard", status_code=303)
         
         # Create Signed Cookie
@@ -50,49 +80,89 @@ async def admin_login(request: Request, username: str = Form(...), password: str
         )
         return response
     
+    await log_admin_action(request, "login_failed", f"Failed login attempt for username: {username}")
     return RedirectResponse(url="/admin/login?error=Invalid+credentials", status_code=303)
 
 @router.get("/logout")
-async def admin_logout():
+async def admin_logout(request: Request):
+    await log_admin_action(request, "logout", "Admin logged out")
     response = RedirectResponse(url="/admin/login")
     response.delete_cookie(settings.SESSION_COOKIE)
     return response
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, is_admin: bool = Depends(get_current_admin), date: Optional[str] = Query(None)):
+async def admin_dashboard(
+    request: Request, 
+    is_admin: bool = Depends(get_current_admin), 
+    date: Optional[str] = Query(None), 
+    search: Optional[str] = Query(None),
+    view: str = Query("active")
+):
     if not is_admin:
         return RedirectResponse(url="/admin/login")
     
     from datetime import timezone, timedelta
     IST = timezone(timedelta(hours=5, minutes=30))
     
-    if date:
-        try:
-            # Parse requested date and set to IST
-            target_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=IST)
-        except:
-            target_date = datetime.now(IST)
+    target_date = datetime.now(IST) # Default needed for template even if searching
+    
+    # Criteria list for query
+    criteria = []
+    
+    # 1. Filter by View (Trash vs Active)
+    if view == "trash":
+        criteria.append(Submission.deleted_at != None)
     else:
-        target_date = datetime.now(IST)
+        criteria.append(Submission.deleted_at == None) # Default to active only
 
-    # Calculate start and end of day in IST
-    start_of_day_ist = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_of_day_ist = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+    # 2. Filter by Search OR Date
+    if search:
+        # Search by email (case-insensitive) - Prefix match
+        import re
+        escaped_search = re.escape(search)
+        criteria.append({"email": {"$regex": f"^{escaped_search}", "$options": "i"}})
+        
+        # When searching, we typically ignore date to allow finding records from past
+        # So we don't add date criteria here
+                
+    else:
+        # Date-based filtering (only if no search)
+        if date:
+            try:
+                # Parse requested date and set to IST
+                target_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=IST)
+            except:
+                target_date = datetime.now(IST)
+        else:
+            target_date = datetime.now(IST)
 
-    # Convert to UTC for MongoDB Query (assuming DB stores naive UTC or aware UTC)
-    # If DB stores naive UTC (default), we need to cast to UTC and strip tzinfo
-    start_of_day_utc = start_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
-    end_of_day_utc = end_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
+        # Calculate start and end of day in IST
+        start_of_day_ist = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day_ist = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-    submissions = await Submission.find(
-        Submission.created_at >= start_of_day_utc,
-        Submission.created_at <= end_of_day_utc
-    ).sort("-created_at").to_list()
+        # Convert to UTC for MongoDB Query
+        start_of_day_utc = start_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
+        end_of_day_utc = end_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
+
+        criteria.append(Submission.created_at >= start_of_day_utc)
+        criteria.append(Submission.created_at <= end_of_day_utc)
+    
+    # Execute Query
+    submissions = await Submission.find(*criteria).sort("-created_at").to_list()
+    
+    # Convert created_at from UTC to IST for display
+    for sub in submissions:
+        if sub.created_at:
+            # MongoDB returns naive UTC, convert to IST
+            utc_time = sub.created_at.replace(tzinfo=timezone.utc)
+            sub.created_at = utc_time.astimezone(IST)
     
     return templates.TemplateResponse("dashboard.html", {
         "request": request, 
         "submissions": submissions,
-        "selected_date": target_date.strftime("%Y-%m-%d")
+        "selected_date": target_date.strftime("%Y-%m-%d"),
+        "search_query": search or "",
+        "current_view": view
     })
 
 @router.get("/settings", response_class=HTMLResponse)
@@ -129,6 +199,8 @@ async def update_admin_settings(
             
         await admin.save()
         
+        await log_admin_action(request, "settings", f"Updated admin settings (username: {username})")
+        
         # Update session cookie with new username
         response = RedirectResponse(url="/admin/settings?success=1", status_code=303)
         session_token = signer.dumps({"user": admin.username})
@@ -152,6 +224,13 @@ async def edit_submission_page(request: Request, id: PydanticObjectId, success: 
     submission = await Submission.get(id)
     if not submission:
          return RedirectResponse(url="/admin/dashboard")
+    
+    # Convert created_at from UTC to IST for display
+    from datetime import timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+    if submission.created_at:
+        utc_time = submission.created_at.replace(tzinfo=timezone.utc)
+        submission.created_at = utc_time.astimezone(IST)
     
     message = "Submission updated successfully!" if success else None
 
@@ -190,23 +269,44 @@ async def edit_submission(
     submission.email = email
     submission.slots = selected_slots
     await submission.save()
+    
+    await log_admin_action(request, "edit", f"Edited submission {id} (reg_no: {reg_no})")
         
     # PRG Pattern: Redirect to prevent resubmission
     return RedirectResponse(url=f"/admin/edit/{id}?success=1", status_code=303)
 
 @router.post("/delete/{id}")
-async def delete_submission(id: PydanticObjectId, is_admin: bool = Depends(get_current_admin)):
+async def delete_submission(request: Request, id: PydanticObjectId, is_admin: bool = Depends(get_current_admin)):
     if not is_admin:
         return RedirectResponse(url="/admin/login")
     
     submission = await Submission.get(id)
     if submission:
-        await submission.delete()
+        reg_no = submission.reg_no
+        # Soft delete
+        submission.deleted_at = datetime.utcnow()
+        await submission.save()
+        await log_admin_action(request, "delete", f"Soft deleted submission (reg_no: {reg_no})")
         
-    return RedirectResponse(url="/admin/dashboard", status_code=303)
+    return RedirectResponse(url="/admin/dashboard?view=active", status_code=303)
+
+@router.post("/restore/{id}")
+async def restore_submission(request: Request, id: PydanticObjectId, is_admin: bool = Depends(get_current_admin)):
+    if not is_admin:
+        return RedirectResponse(url="/admin/login")
+    
+    submission = await Submission.get(id)
+    if submission:
+        reg_no = submission.reg_no
+        # Restore
+        submission.deleted_at = None
+        await submission.save()
+        await log_admin_action(request, "restore", f"Restored submission (reg_no: {reg_no})")
+        
+    return RedirectResponse(url="/admin/dashboard?view=trash", status_code=303)
 
 @router.get("/download")
-async def download_excel(is_admin: bool = Depends(get_current_admin), date: Optional[str] = Query(None)):
+async def download_excel(request: Request, is_admin: bool = Depends(get_current_admin), date: Optional[str] = Query(None)):
     if not is_admin:
         return RedirectResponse(url="/admin/login")
 
@@ -228,10 +328,16 @@ async def download_excel(is_admin: bool = Depends(get_current_admin), date: Opti
     start_of_day_utc = start_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
     end_of_day_utc = end_of_day_ist.astimezone(timezone.utc).replace(tzinfo=None)
 
-    submissions = await Submission.find(
+    # Filter by date/time (UTC)
+    criteria = [
         Submission.created_at >= start_of_day_utc,
-        Submission.created_at <= end_of_day_utc
-    ).to_list()
+        Submission.created_at <= end_of_day_utc,
+        Submission.deleted_at == None  # Exclude soft deleted items
+    ]
+
+    submissions = await Submission.find(*criteria).to_list()
+    
+    await log_admin_action(request, "download", f"Downloaded Excel for {target_date.strftime('%Y-%m-%d')} ({len(submissions)} submissions)")
     
     # Adapt Beanie models to dict for Excel Service
     submissions_dicts = [s.dict() for s in submissions]
@@ -250,3 +356,87 @@ async def download_excel(is_admin: bool = Depends(get_current_admin), date: Opti
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+@router.post("/delete/hard/{id}")
+async def hard_delete_submission(request: Request, id: PydanticObjectId, is_admin: bool = Depends(get_current_admin)):
+    if not is_admin:
+        return RedirectResponse(url="/admin/login")
+    
+    submission = await Submission.get(id)
+    if submission:
+        reg_no = submission.reg_no
+        # Hard delete - remove from DB entirely
+        await submission.delete()
+        await log_admin_action(request, "hard_delete", f"Permanently deleted submission (reg_no: {reg_no})")
+        
+    return RedirectResponse(url="/admin/dashboard?view=trash", status_code=303)
+
+@router.post("/trash/empty")
+async def empty_trash(request: Request, is_admin: bool = Depends(get_current_admin)):
+    if not is_admin:
+        return RedirectResponse(url="/admin/login")
+    
+    # Find all items in trash
+    trash_items = await Submission.find(Submission.deleted_at != None).to_list()
+    count = len(trash_items)
+    
+    if count > 0:
+        # Delete them all
+        await Submission.find(Submission.deleted_at != None).delete()
+        await log_admin_action(request, "empty_trash", f"Permanently deleted {count} items from trash")
+        
+    return RedirectResponse(url="/admin/dashboard?view=trash", status_code=303)
+
+@router.get("/logs", response_class=HTMLResponse)
+async def admin_logs_page(request: Request, is_admin: bool = Depends(get_current_admin), page: int = Query(1, ge=1), filter: Optional[str] = Query(None), level: Optional[str] = Query(None)):
+    if not is_admin:
+        return RedirectResponse(url="/admin/login")
+    
+    from datetime import timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+    
+    # Define action categories
+    action_categories = {
+        "auth": ["login", "login_failed", "logout"],
+        "data": ["edit", "delete", "download"],
+        "system": ["settings"]
+    }
+    
+    per_page = 20
+    skip = (page - 1) * per_page
+    
+    # Build query based on filter and level
+    query_filter = {}
+    
+    if filter == "errors":
+        query_filter["log_type"] = "error"
+    elif filter and filter in action_categories:
+        query_filter["action"] = {"$in": action_categories[filter]}
+    
+    if level and level in ["INFO", "WARNING", "ERROR"]:
+        query_filter["level"] = level
+    
+    query = AdminLog.find(query_filter) if query_filter else AdminLog.find()
+    
+    # Get total count for pagination
+    total_logs = await query.count()
+    total_pages = max(1, (total_logs + per_page - 1) // per_page)  # Ceiling division, min 1
+    
+    # Fetch logs with pagination, sorted by newest first
+    logs = await query.sort("-created_at").skip(skip).limit(per_page).to_list()
+    
+    # Convert timestamps to IST for display
+    for log in logs:
+        if log.created_at:
+            utc_time = log.created_at.replace(tzinfo=timezone.utc)
+            log.created_at = utc_time.astimezone(IST)
+    
+    return templates.TemplateResponse("admin_logs.html", {
+        "request": request,
+        "logs": logs,
+        "current_page": page,
+        "total_pages": total_pages,
+        "total_logs": total_logs,
+        "current_filter": filter or "all",
+        "current_level": level or "all"
+    })

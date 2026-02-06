@@ -40,55 +40,113 @@
 
         <form action="/edit/{{ id }}" method="post" class="space-y-6" autocomplete="off">
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Registration Number</label>
-                <input type="text" name="reg_no" value="{{ submission.reg_no }}" readonly
-                    class="block w-full px-4 py-2.5 bg-gray-100 border border-gray-300 rounded-lg text-gray-500 cursor-not-allowed">
-                <p class="mt-1 text-xs text-gray-400">Registration number cannot be changed.</p>
-            </div>
-
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
-                <input type="email" name="email" value="{{ submission.email if submission.email else '' }}"
-                    class="block w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-sm"
-                    placeholder="name.23bai10056@vitbhopal.ac.in" pattern=".*@vitbhopal\.ac\.in$"
-                    title="Email must be a VIT Bhopal email (@vitbhopal.ac.in)">
-            </div>
-
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-2">Available Slots</label>
-                <div id="slots-container"
-                    class="space-y-2 max-h-48 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
-                    <!-- Skeleton Loader -->
-                    <div id="slots-loader" class="space-y-2">
-                        <div class="animate-pulse flex items-center p-2">
-                            <div class="h-4 w-4 bg-gray-300 rounded mr-3"></div>
-                            <div class="h-4 bg-gray-300 rounded w-24"></div>
-                        </div>
-                        <div class="animate-pulse flex items-center p-2">
-                            <div class="h-4 w-4 bg-gray-300 rounded mr-3"></div>
-                            <div class="h-4 bg-gray-300 rounded w-32"></div>
-                        </div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1 ml-1">Registration Number</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
                     </div>
-                    <!-- Slots will be loaded here -->
-                    <div id="slots-list" class="hidden"></div>
+                    <input type="text" name="reg_no" value="{{ submission.reg_no }}" readonly
+                        class="block w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 font-medium cursor-not-allowed text-sm">
                 </div>
+                <p class="mt-1 text-xs text-gray-400 ml-1">Registration number cannot be changed.</p>
             </div>
 
-            <button type="submit"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">
-                Update Submission
-            </button>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1 ml-1">Email Address</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <input type="email" name="email" id="email"
+                        value="{{ submission.email if submission.email else '' }}"
+                        class="block w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-transparent transition duration-200 shadow-sm font-medium text-sm"
+                        placeholder="name.reg_no@vitbhopal.ac.in" pattern=".*@vitbhopal\.ac\.in$"
+                        title="Email must be a VIT Bhopal email (@vitbhopal.ac.in)">
+                </div>
+                <p id="email-error" class="mt-1 text-xs text-red-600 font-medium pl-1 hidden"></p>
+                <p class="mt-1 text-xs text-gray-500 ml-1">Format: yourname.{{ submission.reg_no | lower
+                    }}@vitbhopal.ac.in
+                </p>
+            </div>
+
+            <div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2 ml-1">Available Slots</label>
+                    <div id="slots-container"
+                        class="border border-gray-200 rounded-xl bg-white/50 p-4 max-h-60 overflow-y-auto">
+                        <!-- Skeleton Loader -->
+                        <div id="slots-loader" class="space-y-4">
+                            <div class="animate-pulse flex items-center">
+                                <div class="h-5 w-5 bg-gray-200 rounded mr-3"></div>
+                                <div class="h-4 bg-gray-200 rounded w-full"></div>
+                            </div>
+                            <div class="animate-pulse flex items-center">
+                                <div class="h-5 w-5 bg-gray-200 rounded mr-3"></div>
+                                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                            </div>
+                            <div class="animate-pulse flex items-center">
+                                <div class="h-5 w-5 bg-gray-200 rounded mr-3"></div>
+                                <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                            </div>
+                        </div>
+                        <!-- Slots will be loaded here -->
+                        <div id="slots-list" class="space-y-3 hidden"></div>
+                    </div>
+                </div>
+
+                <button type="submit"
+                    class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 transform hover:-translate-y-0.5 mt-2">
+                    Update Submission
+                </button>
         </form>
     </div>
 
     <script>
+        const regNo = '{{ submission.reg_no }}'.toUpperCase();
+
         document.querySelector('form').addEventListener('submit', function (e) {
             const selectedSlots = this.querySelectorAll('input[name="selected_slots"]:checked');
+            const emailInput = this.querySelector('input[name="email"]');
+            const emailError = document.getElementById('email-error');
+            const emailValue = emailInput.value.trim();
+
+            // Reset error styling
+            emailInput.classList.remove('border-red-500', 'ring-1', 'ring-red-500', 'bg-red-50');
+            emailError.classList.add('hidden');
+            emailError.textContent = '';
 
             // Check for at least one slot
             if (selectedSlots.length === 0) {
                 e.preventDefault();
                 alert("Please select at least one slot.");
+                return;
+            }
+
+            // Validate email domain
+            if (!emailValue.endsWith('@vitbhopal.ac.in')) {
+                e.preventDefault();
+                emailInput.classList.add('border-red-500', 'ring-1', 'ring-red-500', 'bg-red-50');
+                emailError.textContent = 'Email must be a VIT Bhopal email (@vitbhopal.ac.in)';
+                emailError.classList.remove('hidden');
+                emailInput.focus();
+                return;
+            }
+
+            // Validate email format: name.{reg_no}@vitbhopal.ac.in
+            const emailPrefix = emailValue.split('@')[0].toLowerCase();
+            const expectedSuffix = '.' + regNo.toLowerCase();
+            if (!emailPrefix.endsWith(expectedSuffix)) {
+                e.preventDefault();
+                emailInput.classList.add('border-red-500', 'ring-1', 'ring-red-500', 'bg-red-50');
+                emailError.textContent = "Email doesn't match the registration number";
+                emailError.classList.remove('hidden');
+                emailInput.focus();
                 return;
             }
 
@@ -139,18 +197,20 @@
 
                 slotsList.innerHTML = allSlots.map((slot, index) => {
                     const isChecked = selectedNormalized.includes(slot.time);
+                    // Minimal styling for list items inside the card
+                    const disabledClass = !slot.isActive ? 'opacity-50' : 'hover:opacity-80';
+                    const cursorClass = !slot.isActive ? 'cursor-not-allowed' : 'cursor-pointer';
+                    const disabledInput = !slot.isActive ? 'disabled' : '';
+
                     return `
-                    <label class="flex items-start p-2 rounded-md hover:bg-white hover:shadow-sm transition cursor-pointer group ${!slot.isActive ? 'opacity-60' : ''}">
-                        <div class="flex items-center h-5">
-                            <input type="checkbox" name="selected_slots" value="${slot.time}"
-                                ${isChecked ? 'checked' : ''}
-                                class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 transition">
-                        </div>
-                        <div class="ml-3 text-sm">
-                            <span class="font-medium text-gray-700 group-hover:text-gray-900">${slot.time}</span>
-                            ${!slot.isActive ? '<span class="text-xs text-gray-500 ml-1">(disabled)</span>' : ''}
-                        </div>
-                    </label>
+                    <div class="flex items-center ${disabledClass} transition duration-150">
+                        <input type="checkbox" name="selected_slots" value="${slot.time}" id="slot_${index}"
+                            ${isChecked ? 'checked' : ''} ${disabledInput}
+                             class="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ${cursorClass}">
+                        <label for="slot_${index}" class="ml-3 block text-sm font-medium ${!slot.isActive ? 'text-gray-400' : 'text-gray-700'} ${cursorClass} select-none flex-grow">
+                            ${slot.time} ${!slot.isActive ? '<span class="text-xs ml-1">(Unavailable)</span>' : ''}
+                        </label>
+                    </div>
                 `;
                 }).join('');
 
@@ -158,17 +218,16 @@
                 slotsList.classList.remove('hidden');
             } catch (error) {
                 console.error('Failed to load slots:', error);
+
                 // Fallback: show only selected slots
-                slotsList.innerHTML = selectedSlots.map((slotTime) => `
-                    <label class="flex items-start p-2 rounded-md hover:bg-white hover:shadow-sm transition cursor-pointer group">
-                        <div class="flex items-center h-5">
-                            <input type="checkbox" name="selected_slots" value="${slotTime}" checked
-                                class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 transition">
-                        </div>
-                        <div class="ml-3 text-sm">
-                            <span class="font-medium text-gray-700 group-hover:text-gray-900">${slotTime}</span>
-                        </div>
-                    </label>
+                slotsList.innerHTML = selectedSlots.map((slotTime, index) => `
+                    <div class="flex items-center hover:opacity-80 transition duration-150">
+                        <input type="checkbox" name="selected_slots" value="${slotTime}" id="slot_${index}" checked
+                             class="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer">
+                        <label for="slot_${index}" class="ml-3 block text-sm font-medium text-gray-700 cursor-pointer select-none flex-grow">
+                            ${slotTime}
+                        </label>
+                    </div>
                 `).join('');
                 loader.classList.add('hidden');
                 slotsList.classList.remove('hidden');

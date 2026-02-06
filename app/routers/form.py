@@ -17,6 +17,8 @@ templates = Jinja2Templates(directory="templates")
 async def read_form(
     request: Request, 
     error: Optional[str] = None,
+    email_error: Optional[str] = None,
+    reg_no_error: Optional[str] = None,
     reg_no: Optional[str] = None,
     email: Optional[str] = None,
     selected_slots: Optional[List[str]] = Query(None)
@@ -24,6 +26,8 @@ async def read_form(
     context = {
         "request": request, 
         "error": error,
+        "email_error": email_error,
+        "reg_no_error": reg_no_error,
         "reg_no": reg_no,
         "email": email
     }
@@ -54,9 +58,14 @@ async def submit_form(
     email: str = Form(""),
     selected_slots: List[str] = Form([])
 ):
-    def redirect_with_error(msg, passed_reg_no=reg_no, passed_email=email):
+    def redirect_with_error(msg, passed_reg_no=reg_no, passed_email=email, is_email_error=False, is_reg_no_error=False):
         import urllib.parse
-        params = {"error": msg}
+        if is_email_error:
+            params = {"email_error": msg}
+        elif is_reg_no_error:
+            params = {"reg_no_error": msg}
+        else:
+            params = {"error": msg}
         if passed_reg_no:
             params["reg_no"] = passed_reg_no
         if passed_email:
@@ -67,7 +76,7 @@ async def submit_form(
 
     try:
         if not reg_no:
-            return redirect_with_error("Registration Number is required")
+            return redirect_with_error("Registration Number is required", is_reg_no_error=True)
         
         if not selected_slots:
             return redirect_with_error("Select at least one slot")
@@ -83,7 +92,7 @@ async def submit_form(
         
         reg_pattern = r"^\d{2}[A-Z]{3}\d{5}$"
         if not re.match(reg_pattern, reg_no):
-            return redirect_with_error("Invalid format. Example: 23BAI10056", reg_no)
+            return redirect_with_error("Invalid format. Example: 23BAI10056", reg_no, is_reg_no_error=True)
 
         from datetime import timezone, timedelta
         IST = timezone(timedelta(hours=5, minutes=30))
@@ -101,10 +110,16 @@ async def submit_form(
             return redirect_with_error("This registration number has already submitted today. Please check your email for the edit link.", reg_no)
 
         if not email:
-            return redirect_with_error("Email is required")
+            return redirect_with_error("Email is required", is_email_error=True)
         
         if not email.endswith("@vitbhopal.ac.in"):
-             return redirect_with_error("Email must be a VIT Bhopal email (@vitbhopal.ac.in)")
+             return redirect_with_error("Email must be a VIT Bhopal email (@vitbhopal.ac.in)", is_email_error=True)
+        
+        # Validate email format: name.{reg_no}@vitbhopal.ac.in
+        email_prefix = email.split("@")[0].lower()
+        expected_suffix = f".{reg_no.lower()}"
+        if not email_prefix.endswith(expected_suffix):
+            return redirect_with_error("Email doesn't match the registration number", is_email_error=True)
             
         submission_data = {
             "reg_no": reg_no,
@@ -176,6 +191,14 @@ async def user_update_submission(
     if not submission:
         # Submission was deleted - redirect to home with error
         return RedirectResponse(url="/?error=Submission+not+found.+It+may+have+been+deleted.", status_code=303)
+    
+    # Validate email format: name.{reg_no}@vitbhopal.ac.in
+    email_prefix = email.split("@")[0].lower()
+    expected_suffix = f".{submission.reg_no.lower()}"
+    if not email_prefix.endswith(expected_suffix):
+        import urllib.parse
+        error_msg = urllib.parse.quote("Email doesn't match the registration number")
+        return RedirectResponse(url=f"/edit/{id}?error={error_msg}", status_code=303)
 
     # Validation: Ensure all selected slots are valid active slots
     active_slots_docs = await Slot.find(Slot.is_active == True).to_list()
