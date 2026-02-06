@@ -110,7 +110,7 @@ async def admin_settings_page(request: Request, is_admin: bool = Depends(get_cur
 async def update_admin_settings(
     request: Request, 
     username: str = Form(...), 
-    password: str = Form(...),
+    password: Optional[str] = Form(None),
     is_admin: bool = Depends(get_current_admin)
 ):
     if not is_admin:
@@ -118,13 +118,30 @@ async def update_admin_settings(
     
     admin = await Admin.find_one()
     if admin:
-        from app.utils.auth import Hash
-        hashed_pw = Hash.bcrypt(password)
-        
+        # Update username
         admin.username = username
-        admin.password = hashed_pw
+        
+        # Update password only if provided
+        if password:
+            from app.utils.auth import Hash
+            hashed_pw = Hash.bcrypt(password)
+            admin.password = hashed_pw
+            
         await admin.save()
-        return RedirectResponse(url="/admin/settings?success=1", status_code=303)
+        
+        # Update session cookie with new username
+        response = RedirectResponse(url="/admin/settings?success=1", status_code=303)
+        session_token = signer.dumps({"user": admin.username})
+        response.set_cookie(
+            key=settings.SESSION_COOKIE, 
+            value=session_token,
+            max_age=settings.SESSION_EXPIRY,
+            httponly=True,
+            samesite="lax",
+            secure=True
+        )
+        return response
+        
     return RedirectResponse(url="/admin/dashboard")
 
 @router.get("/edit/{id}", response_class=HTMLResponse)
