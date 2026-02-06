@@ -98,7 +98,7 @@ async def submit_form(
         )
         
         if duplicate:
-            return redirect_with_error("This registration number has submitted a response for today. Contact admin for new response.", reg_no)
+            return redirect_with_error("This registration number has already submitted today. Please check your email for the edit link.", reg_no)
 
         if not email:
             return redirect_with_error("Email is required")
@@ -120,7 +120,7 @@ async def submit_form(
         except Exception as e:
             # Catch duplicate key error from Unique Index
             if "DuplicateKey" in str(e) or "E11000" in str(e): 
-                 return redirect_with_error("This registration number has submitted a response for today. Contact admin for new response.", reg_no)
+                 return redirect_with_error("This registration number has already submitted today. Please check your email for the edit link.", reg_no)
             raise e
         
         # Send Email in Background

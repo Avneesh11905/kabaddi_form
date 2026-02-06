@@ -125,7 +125,16 @@
         loadSlots();
     </script>
     <script>
-        document.querySelector('form').addEventListener('submit', function () {
+        document.querySelector('form').addEventListener('submit', function (e) {
+            const selectedSlots = this.querySelectorAll('input[name="selected_slots"]:checked');
+
+            // Check for at least one slot
+            if (selectedSlots.length === 0) {
+                e.preventDefault();
+                alert("Please select at least one slot.");
+                return;
+            }
+
             const btn = this.querySelector('button[type="submit"]');
             btn.disabled = true;
             btn.innerHTML = `

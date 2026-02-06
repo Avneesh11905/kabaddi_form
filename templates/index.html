@@ -162,8 +162,18 @@
 
         form.addEventListener('submit', function (e) {
             const emailInput = form.querySelector('input[name="email"]').value.trim();
+            const selectedSlots = form.querySelectorAll('input[name="selected_slots"]:checked');
 
-            // Validate
+            // Check for at least one slot
+            if (selectedSlots.length === 0) {
+                e.preventDefault();
+                errorText.textContent = "Please select at least one slot.";
+                errorDiv.classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+
+            // Validate email
             const result = emailSchema.safeParse(emailInput);
 
             if (!result.success) {
